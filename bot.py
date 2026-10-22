@@ -3,6 +3,13 @@ import io
 import json
 import asyncio
 import requests
+
+# Python 3.12/3.14 এর জন্য ইভেন্ট লুপ ফিক্স (একদম শুরুতে থাকতে হবে)
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
 from aiohttp import web
 from pyrogram import Client, filters, idle
 from google.oauth2.credentials import Credentials
@@ -16,7 +23,7 @@ API_HASH = os.getenv("TELEGRAM_API_HASH")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 PORT = int(os.getenv("PORT", 8080))
 
-# আপনার আসল Koyeb ডোমেইন সরাসরি ফিক্স করা
+# আপনার Koyeb ডোমেইন
 BASE_URL = "https://quarrelsome-floris-chatgept-52ae575d.koyeb.app"
 
 DB_FILE = "drives.json"
@@ -84,7 +91,6 @@ async def watch_player(request):
                 height: 100vh;
                 overflow: hidden;
             }}
-            /* গুগল ড্রাইভের ওপরের অংশ ক্রপ করে বাদ দেওয়া */
             iframe {{
                 position: absolute;
                 top: -56px;
@@ -171,12 +177,10 @@ async def upload_video(client, message):
         file_id = file.get('id')
         service.permissions().create(fileId=file_id, body={'type': 'anyone', 'role': 'reader'}).execute()
 
-        # লিংকসমূহ তৈরি
         custom_play_link = f"{BASE_URL}/watch?id={file_id}"
         drive_direct_link = f"https://drive.google.com/file/d/{file_id}/preview"
         embed_code = f'<iframe src="{custom_play_link}" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>'
 
-        # সুন্দর আলাদা বক্সে টেলিগ্রামে মেসেজ পাঠানো
         await status.edit_text(
             f"✅ **ভিডিও সফলভাবে আপলোড সম্পন্ন হয়েছে!**\n\n"
             f"🎬 **১. কাস্টম প্লে লিংক (ব্রাউজারে দেখতে):**\n"
