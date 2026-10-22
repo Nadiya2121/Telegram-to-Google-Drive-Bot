@@ -116,12 +116,12 @@ def get_service(token):
     creds = Credentials(token=access_token)
     return build('drive', 'v3', credentials=creds)
 
-# ----------------- মোবাইল ফ্রেন্ডলি সিনেমা প্লেয়ার -----------------
+# ----------------- টেলিগ্রাম মিনি অ্যাপ ও ব্রাউজার ফুলস্ক্রিন প্লেয়ার -----------------
 routes = web.RouteTableDef()
 
 @routes.get("/")
 async def home(request):
-    return web.Response(text="🚀 Mobile Friendly Stream Server is Running!", content_type="text/plain")
+    return web.Response(text="🚀 Fullscreen Cinema Server is Running!", content_type="text/plain")
 
 @routes.get("/watch")
 @routes.get("/watch/")
@@ -130,52 +130,51 @@ async def watch_player(request):
     if not file_id:
         return web.Response(text="ভিডিও ফাইল পাওয়া যায়নি!", status=400)
 
+    # টেলিগ্রাম মিনি অ্যাপের জন্য অটো ফুলস্ক্রিন কোড
     html_content = f"""
     <!DOCTYPE html>
     <html lang="bn">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <title>সিনেমা প্লেয়ার</title>
+        <!-- টেলিগ্রাম ওয়েব অ্যাপ SDK -->
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
             * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-            body, html {{ 
-                width: 100%; 
-                height: 100%; 
+            html, body {{ 
+                width: 100vw; 
+                height: 100vh; 
                 background-color: #000; 
-                display: flex;
-                justify-content: center;
-                align-items: center;
                 overflow: hidden;
+                position: fixed;
+                top: 0;
+                left: 0;
             }}
-            /* ১৬:৯ রেশিও ফিক্সড যাতে মোবাইলের বাটন ভিডিওর উপরে না ওঠে */
-            .cinema-wrapper {{
-                position: relative;
+            /* সম্পূর্ণ ডিসপ্লে জুড়ে ফিট হওয়া কন্টেইনার */
+            .fullscreen-wrapper {{
+                position: absolute;
+                top: 0;
+                left: 0;
                 width: 100%;
-                max-width: 900px;
-                aspect-ratio: 16 / 9;
+                height: 100%;
                 background: #000;
                 overflow: hidden;
             }}
-            /* ফুলস্ক্রিন ও ল্যান্ডস্কেপ মোড */
-            @media (orientation: landscape) and (max-height: 500px) {{
-                .cinema-wrapper {{
-                    max-width: 100vw;
-                    height: 100vh;
-                }}
-            }}
-            /* গুগল ড্রাইভের ওপরের অংশ সুন্দরভাবে ক্রপ করা */
+            /* পপ-আউট বাটন ও ওপরের বার পুরোপুরি কেটে বাদ দেওয়া */
             iframe {{
                 position: absolute;
-                top: -54px;
+                top: -50px;
                 left: 0;
-                width: 100%;
-                height: calc(100% + 54px);
+                width: 125%;
+                height: calc(125% + 50px);
+                transform: scale(0.8);
+                transform-origin: 0 0;
                 border: none;
             }}
             .brand-header {{
                 position: absolute;
-                top: 10px;
+                top: 15px;
                 left: 15px;
                 z-index: 10;
                 pointer-events: none;
@@ -185,7 +184,7 @@ async def watch_player(request):
                 color: #fff;
                 font-weight: 900;
                 font-size: 11px;
-                padding: 3px 6px;
+                padding: 3px 7px;
                 border-radius: 3px;
                 letter-spacing: 1px;
                 font-family: sans-serif;
@@ -193,13 +192,20 @@ async def watch_player(request):
         </style>
     </head>
     <body oncontextmenu="return false;">
-        <div class="cinema-wrapper">
+        <div class="fullscreen-wrapper">
             <div class="brand-header">
                 <span class="brand-logo">STREAM</span>
             </div>
             <iframe src="https://drive.google.com/file/d/{file_id}/preview" allow="autoplay; fullscreen" allowfullscreen></iframe>
         </div>
+
         <script>
+            // টেলিগ্রাম মিনি অ্যাপ ওপেন হওয়ামাত্রই অটোমেটিক ফুল স্ক্রিন করা
+            if (window.Telegram && window.Telegram.WebApp) {{
+                window.Telegram.WebApp.ready();
+                window.Telegram.WebApp.expand();
+            }}
+
             document.onkeydown = function(e) {{
                 if (e.keyCode == 123 || (e.ctrlKey && (e.keyCode == 85 || e.keyCode == 83 || e.keyCode == 67))) {{
                     return false;
@@ -218,7 +224,7 @@ async def start(client, message):
         "👋 **প্রো ক্লাউড বটে স্বাগতম!**\n\n"
         "➕ **জিমেইল যুক্ত করতে:** `/add টোকেন`\n"
         "📊 **ড্রাইভ দেখতে:** `/drives`\n\n"
-        "🎬 যেকোনো ভিডিও পাঠান, বট মোবাইল ফ্রেন্ডলি ও ব্লগার সাপোর্টেড লিংক দেবে!"
+        "🎬 ভিডিও পাঠান, বট মিনি অ্যাপ ও ব্রাউজারে ১ ক্লিকে ফুল ডিসপ্লে লিংক দেবে!"
     )
 
 @app.on_message(filters.command("add") & filters.user(ADMIN_ID))
@@ -284,16 +290,16 @@ async def upload_video(client, message):
         custom_play_link = f"{BASE_URL}/watch?id={file_id}"
         drive_direct_link = f"https://drive.google.com/file/d/{file_id}/preview"
         
-        # ব্লগার এবং মোবাইল ফ্রেন্ডলি এম্বেড কোড
-        embed_code = f'<iframe src="{custom_play_link}" width="100%" height="360" frameborder="0" allowfullscreen style="aspect-ratio: 16/9; width: 100%; border: none; border-radius: 8px;"></iframe>'
+        # ১ ক্লিকে অটো ফুল-ডিসপ্লে এম্বেড কোড
+        embed_code = f'<div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 999999; background: #000; overflow: hidden;"><iframe src="{custom_play_link}" style="width: 100%; height: 100%; border: none;" allowfullscreen allow="autoplay"></iframe></div>'
 
         safe_embed = html.escape(embed_code)
 
         final_text = (
             f"✅ <b>ভিডিও সফলভাবে আপলোড সম্পন্ন হয়েছে!</b>\n\n"
-            f"🎬 <b>১. কাস্টম সিনেমা প্লে লিংক (মোবাইল ফ্রেন্ডলি):</b>\n"
+            f"🎬 <b>১. ১-ক্লিক ফুল ডিসপ্লে লিংক (মিনি অ্যাপ ও ব্রাউজারের জন্য):</b>\n"
             f"{custom_play_link}\n\n"
-            f"🌐 <b>২. ব্লগার/ওয়েবসাইট এম্বেড কোড (ট্যাপ করে কপি করুন):</b>\n"
+            f"🌐 <b>২. ফুলস্ক্রিন এম্বেড কোড (ট্যাপ করে কপি করুন):</b>\n"
             f"<code>{safe_embed}</code>\n\n"
             f"🔗 <b>৩. সরাসরি ড্রাইভ লিংক (ব্যাকআপ):</b>\n"
             f"{drive_direct_link}"
@@ -313,7 +319,7 @@ async def main():
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-    print(f"🚀 Mobile Friendly Stream Server started on port {PORT}")
+    print(f"🚀 Fullscreen Stream Server started on port {PORT}")
     await idle()
     await app.stop()
 
