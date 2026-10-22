@@ -21,7 +21,7 @@ BASE_URL = os.getenv("KOYEB_PUBLIC_DOMAIN")
 if BASE_URL:
     BASE_URL = f"https://{BASE_URL}"
 else:
-    BASE_URL = os.getenv("BASE_URL", "http://localhost:5244")
+    BASE_URL = os.getenv("BASE_URL", "https://national-harlie-chatgept-b2123952.koyeb.app/view/Telegram-to-Google-Drive-Bot")
 
 DB_FILE = "drives.json"
 
