@@ -17,7 +17,7 @@ ADMIN_ID = int(os.getenv("ADMIN_ID"))
 PORT = int(os.getenv("PORT", 8080))
 
 # আপনার আসল Koyeb ডোমেইন সরাসরি ফিক্স করা
-BASE_URL = "https://national-harlie-chatgept-b2123952.koyeb.app"
+BASE_URL = "https://quarrelsome-floris-chatgept-52ae575d.koyeb.app"
 
 DB_FILE = "drives.json"
 
