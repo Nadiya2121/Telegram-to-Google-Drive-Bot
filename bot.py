@@ -56,7 +56,6 @@ def time_formatter(milliseconds: int) -> str:
         ((str(seconds) + "s, ") if seconds else "")
     return tmp[:-2] if tmp else "0s"
 
-# ৫ সেকেন্ড পর পর লাইভ প্রগ্রেস বার
 async def progress_bar(current, total, status_msg, start_time):
     now = time.time()
     diff = now - start_time
@@ -117,12 +116,12 @@ def get_service(token):
     creds = Credentials(token=access_token)
     return build('drive', 'v3', credentials=creds)
 
-# ----------------- বিশ্বমানের নেটফ্লিক্স সিনেমা প্লেয়ার -----------------
+# ----------------- মোবাইল ফ্রেন্ডলি সিনেমা প্লেয়ার -----------------
 routes = web.RouteTableDef()
 
 @routes.get("/")
 async def home(request):
-    return web.Response(text="🚀 Pro Stream Server is Running!", content_type="text/plain")
+    return web.Response(text="🚀 Mobile Friendly Stream Server is Running!", content_type="text/plain")
 
 @routes.get("/watch")
 @routes.get("/watch/")
@@ -131,7 +130,6 @@ async def watch_player(request):
     if not file_id:
         return web.Response(text="ভিডিও ফাইল পাওয়া যায়নি!", status=400)
 
-    # প্রিমিয়াম সিনেমা র‍্যাপার (গুগল ড্রাইভের হেডার ১০০% গায়েব + সরাসরি প্লে)
     html_content = f"""
     <!DOCTYPE html>
     <html lang="bn">
@@ -144,53 +142,53 @@ async def watch_player(request):
             body, html {{ 
                 width: 100%; 
                 height: 100%; 
-                background-color: #0b0e14; 
-                overflow: hidden;
+                background-color: #000; 
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                overflow: hidden;
             }}
+            /* ১৬:৯ রেশিও ফিক্সড যাতে মোবাইলের বাটন ভিডিওর উপরে না ওঠে */
             .cinema-wrapper {{
                 position: relative;
-                width: 100vw;
-                height: 100vh;
+                width: 100%;
+                max-width: 900px;
+                aspect-ratio: 16 / 9;
                 background: #000;
                 overflow: hidden;
             }}
-            /* গুগল ড্রাইভের ওপরের অংশ ক্রপ করে পুরোপুরি কেটে ফেলা */
+            /* ফুলস্ক্রিন ও ল্যান্ডস্কেপ মোড */
+            @media (orientation: landscape) and (max-height: 500px) {{
+                .cinema-wrapper {{
+                    max-width: 100vw;
+                    height: 100vh;
+                }}
+            }}
+            /* গুগল ড্রাইভের ওপরের অংশ সুন্দরভাবে ক্রপ করা */
             iframe {{
                 position: absolute;
-                top: -56px;
+                top: -54px;
                 left: 0;
                 width: 100%;
-                height: calc(100% + 56px);
+                height: calc(100% + 54px);
                 border: none;
             }}
-            /* প্রিমিয়াম ব্র্যান্ডিং বার */
             .brand-header {{
                 position: absolute;
-                top: 15px;
-                left: 20px;
+                top: 10px;
+                left: 15px;
                 z-index: 10;
                 pointer-events: none;
-                display: flex;
-                align-items: center;
-                gap: 8px;
             }}
             .brand-logo {{
                 background: #E50914;
                 color: #fff;
                 font-weight: 900;
-                font-size: 13px;
-                padding: 4px 8px;
-                border-radius: 4px;
+                font-size: 11px;
+                padding: 3px 6px;
+                border-radius: 3px;
                 letter-spacing: 1px;
-            }}
-            .brand-title {{
-                color: rgba(255, 255, 255, 0.7);
-                font-size: 13px;
-                font-weight: 500;
+                font-family: sans-serif;
             }}
         </style>
     </head>
@@ -198,12 +196,10 @@ async def watch_player(request):
         <div class="cinema-wrapper">
             <div class="brand-header">
                 <span class="brand-logo">STREAM</span>
-                <span class="brand-title">HD Player</span>
             </div>
             <iframe src="https://drive.google.com/file/d/{file_id}/preview" allow="autoplay; fullscreen" allowfullscreen></iframe>
         </div>
         <script>
-            // রাইট ক্লিক ও ইন্সপেক্ট বন্ধ করা
             document.onkeydown = function(e) {{
                 if (e.keyCode == 123 || (e.ctrlKey && (e.keyCode == 85 || e.keyCode == 83 || e.keyCode == 67))) {{
                     return false;
@@ -222,7 +218,7 @@ async def start(client, message):
         "👋 **প্রো ক্লাউড বটে স্বাগতম!**\n\n"
         "➕ **জিমেইল যুক্ত করতে:** `/add টোকেন`\n"
         "📊 **ড্রাইভ দেখতে:** `/drives`\n\n"
-        "🎬 যেকোনো ভিডিও পাঠান, বট কাস্টম প্লে লিংক এবং এম্বেড কোড দেবে!"
+        "🎬 যেকোনো ভিডিও পাঠান, বট মোবাইল ফ্রেন্ডলি ও ব্লগার সাপোর্টেড লিংক দেবে!"
     )
 
 @app.on_message(filters.command("add") & filters.user(ADMIN_ID))
@@ -268,7 +264,6 @@ async def upload_video(client, message):
     file_name = file_obj.file_name or "video.mp4"
 
     try:
-        # প্রগ্রেস বারসহ ডাউনলোড
         file_path = await message.download(
             progress=progress_bar,
             progress_args=(status, start_time)
@@ -283,22 +278,22 @@ async def upload_video(client, message):
         file_id = file.get('id')
         service.permissions().create(fileId=file_id, body={'type': 'anyone', 'role': 'reader'}).execute()
 
-        # লোকাল ফাইল ডিলিট
         if os.path.exists(file_path):
             os.remove(file_path)
 
-        # ৩টি লিংক তৈরি
         custom_play_link = f"{BASE_URL}/watch?id={file_id}"
         drive_direct_link = f"https://drive.google.com/file/d/{file_id}/preview"
-        embed_code = f'<iframe src="{custom_play_link}" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>'
+        
+        # ব্লগার এবং মোবাইল ফ্রেন্ডলি এম্বেড কোড
+        embed_code = f'<iframe src="{custom_play_link}" width="100%" height="360" frameborder="0" allowfullscreen style="aspect-ratio: 16/9; width: 100%; border: none; border-radius: 8px;"></iframe>'
 
         safe_embed = html.escape(embed_code)
 
         final_text = (
             f"✅ <b>ভিডিও সফলভাবে আপলোড সম্পন্ন হয়েছে!</b>\n\n"
-            f"🎬 <b>১. কাস্টম সিনেমা প্লে লিংক (ব্রাউজারে দেখতে):</b>\n"
+            f"🎬 <b>১. কাস্টম সিনেমা প্লে লিংক (মোবাইল ফ্রেন্ডলি):</b>\n"
             f"{custom_play_link}\n\n"
-            f"🌐 <b>২. এম্বেড কোড (নিচে ট্যাপ করে কপি করুন):</b>\n"
+            f"🌐 <b>২. ব্লগার/ওয়েবসাইট এম্বেড কোড (ট্যাপ করে কপি করুন):</b>\n"
             f"<code>{safe_embed}</code>\n\n"
             f"🔗 <b>৩. সরাসরি ড্রাইভ লিংক (ব্যাকআপ):</b>\n"
             f"{drive_direct_link}"
@@ -318,7 +313,7 @@ async def main():
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-    print(f"🚀 Stream Server started on port {PORT}")
+    print(f"🚀 Mobile Friendly Stream Server started on port {PORT}")
     await idle()
     await app.stop()
 
