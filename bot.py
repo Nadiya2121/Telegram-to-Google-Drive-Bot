@@ -117,12 +117,12 @@ def get_service(token):
     creds = Credentials(token=access_token)
     return build('drive', 'v3', credentials=creds)
 
-# ----------------- বিশ্বমানের নেটফ্লিক্স স্টাইল কাস্টম প্লেয়ার -----------------
+# ----------------- বিশ্বমানের নেটফ্লিক্স সিনেমা প্লেয়ার -----------------
 routes = web.RouteTableDef()
 
 @routes.get("/")
 async def home(request):
-    return web.Response(text="🚀 Netflix Style Stream Server is Running!", content_type="text/plain")
+    return web.Response(text="🚀 Pro Stream Server is Running!", content_type="text/plain")
 
 @routes.get("/watch")
 @routes.get("/watch/")
@@ -131,6 +131,7 @@ async def watch_player(request):
     if not file_id:
         return web.Response(text="ভিডিও ফাইল পাওয়া যায়নি!", status=400)
 
+    # প্রিমিয়াম সিনেমা র‍্যাপার (গুগল ড্রাইভের হেডার ১০০% গায়েব + সরাসরি প্লে)
     html_content = f"""
     <!DOCTYPE html>
     <html lang="bn">
@@ -138,58 +139,71 @@ async def watch_player(request):
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>সিনেমা প্লেয়ার</title>
-        <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
         <style>
             * {{ margin: 0; padding: 0; box-sizing: border-box; }}
             body, html {{ 
                 width: 100%; 
                 height: 100%; 
-                background-color: #000; 
-                display: flex; 
-                justify-content: center; 
-                align-items: center; 
+                background-color: #0b0e14; 
                 overflow: hidden;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             }}
-            .video-container {{
+            .cinema-wrapper {{
+                position: relative;
                 width: 100vw;
                 height: 100vh;
-                max-width: 100%;
-                max-height: 100%;
                 background: #000;
+                overflow: hidden;
             }}
-            :root {{
-                --plyr-color-main: #E50914;
-                --plyr-video-background: #000;
-                --plyr-menu-background: rgba(20, 20, 20, 0.95);
-                --plyr-menu-color: #fff;
-            }}
-            .plyr {{
-                height: 100%;
+            /* গুগল ড্রাইভের ওপরের অংশ ক্রপ করে পুরোপুরি কেটে ফেলা */
+            iframe {{
+                position: absolute;
+                top: -56px;
+                left: 0;
                 width: 100%;
+                height: calc(100% + 56px);
+                border: none;
+            }}
+            /* প্রিমিয়াম ব্র্যান্ডিং বার */
+            .brand-header {{
+                position: absolute;
+                top: 15px;
+                left: 20px;
+                z-index: 10;
+                pointer-events: none;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }}
+            .brand-logo {{
+                background: #E50914;
+                color: #fff;
+                font-weight: 900;
+                font-size: 13px;
+                padding: 4px 8px;
+                border-radius: 4px;
+                letter-spacing: 1px;
+            }}
+            .brand-title {{
+                color: rgba(255, 255, 255, 0.7);
+                font-size: 13px;
+                font-weight: 500;
             }}
         </style>
     </head>
     <body oncontextmenu="return false;">
-        <div class="video-container">
-            <video id="player" playsinline controls crossorigin>
-                <source src="https://drive.google.com/uc?export=download&id={file_id}" type="video/mp4" />
-            </video>
+        <div class="cinema-wrapper">
+            <div class="brand-header">
+                <span class="brand-logo">STREAM</span>
+                <span class="brand-title">HD Player</span>
+            </div>
+            <iframe src="https://drive.google.com/file/d/{file_id}/preview" allow="autoplay; fullscreen" allowfullscreen></iframe>
         </div>
-
-        <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
         <script>
-            const player = new Plyr('#player', {{
-                controls: [
-                    'play-large', 'play', 'progress', 'current-time', 
-                    'duration', 'mute', 'volume', 'settings', 'pip', 'airplay', 'fullscreen'
-                ],
-                settings: ['speed', 'quality'],
-                speed: {{ selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] }},
-                seekTime: 10,
-                keyboard: {{ focused: true, global: true }},
-                tooltips: {{ controls: true, seek: true }}
-            }});
-
+            // রাইট ক্লিক ও ইন্সপেক্ট বন্ধ করা
             document.onkeydown = function(e) {{
                 if (e.keyCode == 123 || (e.ctrlKey && (e.keyCode == 85 || e.keyCode == 83 || e.keyCode == 67))) {{
                     return false;
@@ -205,10 +219,10 @@ async def watch_player(request):
 @app.on_message(filters.command("start") & filters.user(ADMIN_ID))
 async def start(client, message):
     await message.reply(
-        "👋 **নেটফ্লিক্স স্টাইল প্রো ক্লাউড বটে স্বাগতম!**\n\n"
+        "👋 **প্রো ক্লাউড বটে স্বাগতম!**\n\n"
         "➕ **জিমেইল যুক্ত করতে:** `/add টোকেন`\n"
         "📊 **ড্রাইভ দেখতে:** `/drives`\n\n"
-        "🎬 ভিডিও পাঠালে আমি ৩টি লিংকই সুন্দর বক্সে সাজিয়ে দেব!"
+        "🎬 যেকোনো ভিডিও পাঠান, বট কাস্টম প্লে লিংক এবং এম্বেড কোড দেবে!"
     )
 
 @app.on_message(filters.command("add") & filters.user(ADMIN_ID))
@@ -269,7 +283,7 @@ async def upload_video(client, message):
         file_id = file.get('id')
         service.permissions().create(fileId=file_id, body={'type': 'anyone', 'role': 'reader'}).execute()
 
-        # সার্ভার ফাইল ডিলিট করে স্টোরেজ ক্লিয়ার রাখা
+        # লোকাল ফাইল ডিলিট
         if os.path.exists(file_path):
             os.remove(file_path)
 
@@ -278,13 +292,11 @@ async def upload_video(client, message):
         drive_direct_link = f"https://drive.google.com/file/d/{file_id}/preview"
         embed_code = f'<iframe src="{custom_play_link}" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>'
 
-        # এম্বেড কোড যাতে টেলিগ্রাম না খায় তার সুরক্ষা
         safe_embed = html.escape(embed_code)
 
-        # ৩টি অপশনই পরিষ্কার বক্সে টেলিগ্রামে পাঠানো
         final_text = (
             f"✅ <b>ভিডিও সফলভাবে আপলোড সম্পন্ন হয়েছে!</b>\n\n"
-            f"🎬 <b>১. নেটফ্লিক্স প্রিমিয়াম প্লে লিংক:</b>\n"
+            f"🎬 <b>১. কাস্টম সিনেমা প্লে লিংক (ব্রাউজারে দেখতে):</b>\n"
             f"{custom_play_link}\n\n"
             f"🌐 <b>২. এম্বেড কোড (নিচে ট্যাপ করে কপি করুন):</b>\n"
             f"<code>{safe_embed}</code>\n\n"
@@ -306,7 +318,7 @@ async def main():
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-    print(f"🚀 Netflix Stream Server started on port {PORT}")
+    print(f"🚀 Stream Server started on port {PORT}")
     await idle()
     await app.stop()
 
