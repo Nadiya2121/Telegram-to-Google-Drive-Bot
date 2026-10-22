@@ -33,12 +33,15 @@ def save_drives(drives):
         print(f"Error saving drives: {e}")
 
 def get_service(token):
-    # গুগলের পাবলিক প্লেগ্রাউন্ড গেটওয়ে দিয়ে টোকেন রিফ্রেশ
+    # গুগলের প্লেগ্রাউন্ড গেটওয়েতে JSON আকারে টোকেন পাঠানো ফিক্স
     url = "https://developers.google.com/oauthplayground/refreshAccessToken"
-    res = requests.post(url, data={
+    headers = {"Content-Type": "application/json"}
+    payload = {
         "token_uri": "https://oauth2.googleapis.com/token",
         "refresh_token": token
-    })
+    }
+    
+    res = requests.post(url, json=payload, headers=headers)
     data = res.json()
     access_token = data.get("access_token")
     
@@ -52,7 +55,7 @@ def get_service(token):
 @app.on_message(filters.command("start") & filters.user(ADMIN_ID))
 async def start(client, message):
     await message.reply(
-        "👋 **স্বাগতম! বট সফলভাবে প্রস্তুত।**\n\n"
+        "👋 **স্বাগতম! বট প্রস্তুত আছে।**\n\n"
         "➕ **জিমেইল যুক্ত করতে লিখুন:**\n`/add আপনার_টোকেন`\n\n"
         "📊 **ড্রাইভ দেখতে লিখুন:**\n`/drives`\n\n"
         "🎬 যেকোনো ভিডিও সেন্ড করলেই সরাসরি ড্রাইভে আপলোড হয়ে যাবে!"
@@ -107,7 +110,6 @@ async def upload_video(client, message):
     file_name = file_obj.file_name or "video.mp4"
 
     try:
-        # কানেক্ট করা ড্রাইভে আপলোড
         service = get_service(drives[0]["token"])
         file_bytes = await message.download(in_memory=True)
         media = MediaIoBaseUpload(io.BytesIO(file_bytes.getvalue()), mimetype='video/mp4', resumable=True)
@@ -115,7 +117,7 @@ async def upload_video(client, message):
         file = service.files().create(body={'name': file_name}, media_body=media, fields='id').execute()
         file_id = file.get('id')
 
-        # সবার জন্য ওপেন করা (Public)
+        # সবার দেখার অনুমতি (Public)
         service.permissions().create(fileId=file_id, body={'type': 'anyone', 'role': 'reader'}).execute()
         stream_link = f"https://drive.google.com/file/d/{file_id}/preview"
         embed_code = f'<iframe src="{stream_link}" width="640" height="360" frameborder="0" allowfullscreen></iframe>'
