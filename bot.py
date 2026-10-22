@@ -5,6 +5,7 @@ import json
 import asyncio
 import requests
 import math
+import html
 
 # Python 3.12+ এর জন্য ইভেন্ট লুপ ফিক্স
 try:
@@ -14,6 +15,7 @@ except RuntimeError:
 
 from aiohttp import web
 from pyrogram import Client, filters, idle
+from pyrogram.enums import ParseMode
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
@@ -54,7 +56,7 @@ def time_formatter(milliseconds: int) -> str:
         ((str(seconds) + "s, ") if seconds else "")
     return tmp[:-2] if tmp else "0s"
 
-# ৫ সেকেন্ড পর পর লাইভ প্রগ্রেস বার আপডেট করার ফাংশন
+# ৫ সেকেন্ড পর পর লাইভ প্রগ্রেস বার
 async def progress_bar(current, total, status_msg, start_time):
     now = time.time()
     diff = now - start_time
@@ -129,7 +131,6 @@ async def watch_player(request):
     if not file_id:
         return web.Response(text="ভিডিও ফাইল পাওয়া যায়নি!", status=400)
 
-    # প্রিমিয়াম Plyr HTML5 প্লেয়ার (Netflix Red Theme + 0% Google UI)
     html_content = f"""
     <!DOCTYPE html>
     <html lang="bn">
@@ -137,7 +138,6 @@ async def watch_player(request):
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>সিনেমা প্লেয়ার</title>
-        <!-- Plyr CSS -->
         <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
         <style>
             * {{ margin: 0; padding: 0; box-sizing: border-box; }}
@@ -157,7 +157,6 @@ async def watch_player(request):
                 max-height: 100%;
                 background: #000;
             }}
-            /* নেটফ্লিক্স রেড কালার থিম */
             :root {{
                 --plyr-color-main: #E50914;
                 --plyr-video-background: #000;
@@ -177,7 +176,6 @@ async def watch_player(request):
             </video>
         </div>
 
-        <!-- Plyr JS -->
         <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
         <script>
             const player = new Plyr('#player', {{
@@ -192,7 +190,6 @@ async def watch_player(request):
                 tooltips: {{ controls: true, seek: true }}
             }});
 
-            // কিবোর্ড শর্টকাট ও ইন্সপেক্ট বন্ধ করা
             document.onkeydown = function(e) {{
                 if (e.keyCode == 123 || (e.ctrlKey && (e.keyCode == 85 || e.keyCode == 83 || e.keyCode == 67))) {{
                     return false;
@@ -211,7 +208,7 @@ async def start(client, message):
         "👋 **নেটফ্লিক্স স্টাইল প্রো ক্লাউড বটে স্বাগতম!**\n\n"
         "➕ **জিমেইল যুক্ত করতে:** `/add টোকেন`\n"
         "📊 **ড্রাইভ দেখতে:** `/drives`\n\n"
-        "🎬 ভিডিও পাঠালে আমি লাইভ প্রগ্রেস বারসহ ড্রাইভে আপলোড করে আধুনিক প্লেয়ার লিংক দেব!"
+        "🎬 ভিডিও পাঠালে আমি ৩টি লিংকই সুন্দর বক্সে সাজিয়ে দেব!"
     )
 
 @app.on_message(filters.command("add") & filters.user(ADMIN_ID))
@@ -257,7 +254,7 @@ async def upload_video(client, message):
     file_name = file_obj.file_name or "video.mp4"
 
     try:
-        # প্রগ্রেস বারসহ ফাইল ডাউনলোড
+        # প্রগ্রেস বারসহ ডাউনলোড
         file_path = await message.download(
             progress=progress_bar,
             progress_args=(status, start_time)
@@ -272,20 +269,31 @@ async def upload_video(client, message):
         file_id = file.get('id')
         service.permissions().create(fileId=file_id, body={'type': 'anyone', 'role': 'reader'}).execute()
 
-        # সার্ভারের লোকাল ফাইল রিমুভ (Koyeb স্টোরেজ ক্লিয়ার রাখা)
+        # সার্ভার ফাইল ডিলিট করে স্টোরেজ ক্লিয়ার রাখা
         if os.path.exists(file_path):
             os.remove(file_path)
 
+        # ৩টি লিংক তৈরি
         custom_play_link = f"{BASE_URL}/watch?id={file_id}"
+        drive_direct_link = f"https://drive.google.com/file/d/{file_id}/preview"
         embed_code = f'<iframe src="{custom_play_link}" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>'
 
-        await status.edit_text(
-            f"✅ **ভিডিও সফলভাবে আপলোড সম্পন্ন হয়েছে!**\n\n"
-            f"🎬 **১. নেটফ্লিক্স প্রিমিয়াম প্লে লিংক:**\n"
+        # এম্বেড কোড যাতে টেলিগ্রাম না খায় তার সুরক্ষা
+        safe_embed = html.escape(embed_code)
+
+        # ৩টি অপশনই পরিষ্কার বক্সে টেলিগ্রামে পাঠানো
+        final_text = (
+            f"✅ <b>ভিডিও সফলভাবে আপলোড সম্পন্ন হয়েছে!</b>\n\n"
+            f"🎬 <b>১. নেটফ্লিক্স প্রিমিয়াম প্লে লিংক:</b>\n"
             f"{custom_play_link}\n\n"
-            f"🌐 **২. ওয়েবসাইটে ব্যবহারের এম্বেড কোড:**\n"
-            f"```{embed_code}```"
+            f"🌐 <b>২. এম্বেড কোড (নিচে ট্যাপ করে কপি করুন):</b>\n"
+            f"<code>{safe_embed}</code>\n\n"
+            f"🔗 <b>৩. সরাসরি ড্রাইভ লিংক (ব্যাকআপ):</b>\n"
+            f"{drive_direct_link}"
         )
+
+        await status.edit_text(final_text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+
     except Exception as e:
         await status.edit_text(f"❌ আপলোডে সমস্যা: {str(e)}")
 
