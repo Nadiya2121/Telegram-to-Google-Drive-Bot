@@ -1,12 +1,12 @@
 import os
 import io
 import json
+import requests
 from pyrogram import Client, filters
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
-# Koyeb পরিবেশ ভেরিয়েবল
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_ID = int(os.getenv("TELEGRAM_API_ID"))
 API_HASH = os.getenv("TELEGRAM_API_HASH")
@@ -33,27 +33,32 @@ def save_drives(drives):
         print(f"Error saving drives: {e}")
 
 def get_service(token):
-    # গুগল ড্রাইভ সার্ভিস তৈরি
-    creds = Credentials(
-        token=None,
-        refresh_token=token,
-        token_uri="https://oauth2.googleapis.com/token",
-        client_id="407408718192.apps.googleusercontent.com",
-        client_secret=""
-    )
+    # গুগলের পাবলিক প্লেগ্রাউন্ড গেটওয়ে দিয়ে টোকেন রিফ্রেশ
+    url = "https://developers.google.com/oauthplayground/refreshAccessToken"
+    res = requests.post(url, data={
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "refresh_token": token
+    })
+    data = res.json()
+    access_token = data.get("access_token")
+    
+    if not access_token:
+        raise Exception(f"গুগল থেকে অ্যাক্সেস পাওয়া যায়নি: {data}")
+
+    creds = Credentials(token=access_token)
     return build('drive', 'v3', credentials=creds)
 
 # ১. স্টার্ট কমান্ড
 @app.on_message(filters.command("start") & filters.user(ADMIN_ID))
 async def start(client, message):
     await message.reply(
-        "👋 **স্বাগতম! বট প্রস্তুত আছে।**\n\n"
+        "👋 **স্বাগতম! বট সফলভাবে প্রস্তুত।**\n\n"
         "➕ **জিমেইল যুক্ত করতে লিখুন:**\n`/add আপনার_টোকেন`\n\n"
         "📊 **ড্রাইভ দেখতে লিখুন:**\n`/drives`\n\n"
-        "🎬 যেকোনো ভিডিও পাঠালে স্বয়ংক্রিয়ভাবে ড্রাইভে আপলোড হয়ে যাবে!"
+        "🎬 যেকোনো ভিডিও সেন্ড করলেই সরাসরি ড্রাইভে আপলোড হয়ে যাবে!"
     )
 
-# ২. ড্রাইভ যুক্ত করার স্মার্ট কমান্ড
+# ২. ড্রাইভ যুক্ত করার কমান্ড
 @app.on_message(filters.command("add") & filters.user(ADMIN_ID))
 async def add_drive(client, message):
     if len(message.command) < 2:
@@ -61,18 +66,7 @@ async def add_drive(client, message):
         return
         
     token = message.command[1].strip()
-
-    # যদি ইউজার ভুল করে 4/0 কোড দেয়
-    if token.startswith("4/"):
-        await message.reply(
-            "⚠️ **এটি আসল রিফ্রেশ টোকেন নয়!**\n\n"
-            "গুগলের পেজে ওই কোডটার ঠিক নিচে নীল রঙের একটি বাটন আছে:\n"
-            "👉 **'Exchange authorization code for tokens'**\n\n"
-            "ওই নীল বাটনে চাপ দিলে নিচে `1//...` দিয়ে শুরু হওয়া আসল টোকেনটি পাবেন। সেটি কপি করে আনুন!"
-        )
-        return
-
-    status = await message.reply("🔍 জিমেইল ভেরিফাই করা হচ্ছে...")
+    status = await message.reply("🔍 জিমেইল কানেক্ট করা হচ্ছে, অপেক্ষা করুন...")
     
     try:
         service = get_service(token)
@@ -80,12 +74,11 @@ async def add_drive(client, message):
         email = about.get('user', {}).get('emailAddress', 'Google Drive')
         
         drives = load_drives()
-        # আগের টোকেন থাকলে আপডেট হবে, না থাকলে নতুন যোগ হবে
         drives = [d for d in drives if d.get("email") != email]
         drives.append({"email": email, "token": token})
         save_drives(drives)
         
-        await status.edit_text(f"🎉 **সফলভাবে যুক্ত হয়েছে!**\n📧 জিমেইল: `{email}`\nমোট ড্রাইভ সংখ্যা: {len(drives)} টি।")
+        await status.edit_text(f"🎉 **অভিনন্দন! জিমেইল সফলভাবে যুক্ত হয়েছে!**\n📧 জিমেইল: `{email}`\nমোট ড্রাইভ সংখ্যা: {len(drives)} টি।")
     except Exception as e:
         await status.edit_text(f"❌ কানেক্ট হতে পারেনি!\nসমস্যা: {str(e)}")
 
@@ -114,7 +107,7 @@ async def upload_video(client, message):
     file_name = file_obj.file_name or "video.mp4"
 
     try:
-        # প্রথম ড্রাইভে আপলোড
+        # কানেক্ট করা ড্রাইভে আপলোড
         service = get_service(drives[0]["token"])
         file_bytes = await message.download(in_memory=True)
         media = MediaIoBaseUpload(io.BytesIO(file_bytes.getvalue()), mimetype='video/mp4', resumable=True)
@@ -122,17 +115,17 @@ async def upload_video(client, message):
         file = service.files().create(body={'name': file_name}, media_body=media, fields='id').execute()
         file_id = file.get('id')
 
-        # সবার দেখার অনুমতি (Public Viewer)
+        # সবার জন্য ওপেন করা (Public)
         service.permissions().create(fileId=file_id, body={'type': 'anyone', 'role': 'reader'}).execute()
         stream_link = f"https://drive.google.com/file/d/{file_id}/preview"
         embed_code = f'<iframe src="{stream_link}" width="640" height="360" frameborder="0" allowfullscreen></iframe>'
 
         await status.edit_text(
-            f"✅ **ভিডিও আপলোড সফল হয়েছে!**\n\n"
+            f"✅ **ভিডিও আপলোড সম্পন্ন!**\n\n"
             f"🎬 **সরাসরি প্লে লিংক:**\n{stream_link}\n\n"
             f"🌐 **ওয়েবসাইটে ব্যবহারের এম্বেড কোড:**\n`{embed_code}`"
         )
     except Exception as e:
-        await status.edit_text(f"❌ আপলোডে সমস্যা হয়েছে: {str(e)}")
+        await status.edit_text(f"❌ আপলোডে সমস্যা: {str(e)}")
 
 app.run()
