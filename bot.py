@@ -14,14 +14,10 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_ID = int(os.getenv("TELEGRAM_API_ID"))
 API_HASH = os.getenv("TELEGRAM_API_HASH")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
-PORT = int(os.getenv("PORT", 5244))
+PORT = int(os.getenv("PORT", 8080))
 
-# Koyeb-এর নিজস্ব ডোমেইন স্বয়ংক্রিয়ভাবে খুঁজে নেওয়া
-BASE_URL = os.getenv("KOYEB_PUBLIC_DOMAIN")
-if BASE_URL:
-    BASE_URL = f"https://{BASE_URL}"
-else:
-    BASE_URL = os.getenv("BASE_URL", "https://national-harlie-chatgept-b2123952.koyeb.app/view/Telegram-to-Google-Drive-Bot")
+# আপনার আসল Koyeb ডোমেইন সরাসরি ফিক্স করা
+BASE_URL = "https://national-harlie-chatgept-b2123952.koyeb.app"
 
 DB_FILE = "drives.json"
 
@@ -58,7 +54,7 @@ def get_service(token):
     creds = Credentials(token=access_token)
     return build('drive', 'v3', credentials=creds)
 
-# ----------------- কাস্টম প্লেয়ার ওয়েব সার্ভার (Aiohttp) -----------------
+# ----------------- কাস্টম ওয়েব প্লেয়ার -----------------
 routes = web.RouteTableDef()
 
 @routes.get("/")
@@ -66,29 +62,29 @@ async def home(request):
     return web.Response(text="🚀 Pro Stream Server is Running Smoothly!", content_type="text/plain")
 
 @routes.get("/watch")
+@routes.get("/watch/")
 async def watch_player(request):
     file_id = request.query.get("id")
     if not file_id:
         return web.Response(text="ভিডিও ফাইল আইডি পাওয়া যায়নি!", status=400)
 
-    # প্রিমিয়াম ডার্ক প্লেয়ার ডিজাইন (গুগল ড্রাইভের লোগো ও হেডার পুরোপুরি হাইড করা)
     html_content = f"""
     <!DOCTYPE html>
     <html lang="bn">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>প্রিমিয়াম ভিডিও প্লেয়ার</title>
+        <title>ভিডিও প্লেয়ার</title>
         <style>
             * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-            body, html {{ width: 100%; height: 100%; overflow: hidden; background-color: #0b0e14; }}
+            body, html {{ width: 100%; height: 100%; overflow: hidden; background-color: #000; }}
             .player-wrapper {{
                 position: relative;
                 width: 100vw;
                 height: 100vh;
                 overflow: hidden;
             }}
-            /* গুগল ড্রাইভের ওপরের টাইটেল বার এবং পপআউট আইকন ক্রপ করে বাদ দেওয়া */
+            /* গুগল ড্রাইভের ওপরের অংশ ক্রপ করে বাদ দেওয়া */
             iframe {{
                 position: absolute;
                 top: -56px;
@@ -104,7 +100,6 @@ async def watch_player(request):
             <iframe src="https://drive.google.com/file/d/{file_id}/preview" allow="autoplay; fullscreen" allowfullscreen></iframe>
         </div>
         <script>
-            // রাইট ক্লিক ও ইন্সপেক্ট বন্ধ করা
             document.onkeydown = function(e) {{
                 if (e.keyCode == 123 || (e.ctrlKey && (e.keyCode == 85 || e.keyCode == 83 || e.keyCode == 67))) {{
                     return false;
@@ -122,8 +117,8 @@ async def start(client, message):
     await message.reply(
         "👋 **প্রো ক্লাউড বটে স্বাগতম!**\n\n"
         "➕ **জিমেইল যুক্ত করতে:** `/add টোকেন`\n"
-        "📊 **ড্রাইভ লিস্ট:** `/drives`\n\n"
-        "🎬 যেকোনো ভিডিও পাঠান, বট কাস্টম ব্র্যান্ডেড লিংক বানিয়ে দেবে!"
+        "📊 **ড্রাইভ দেখতে:** `/drives`\n\n"
+        "🎬 যেকোনো ভিডিও পাঠান, বট কাস্টম প্লে লিংক এবং এম্বেড কোড দেবে!"
     )
 
 @app.on_message(filters.command("add") & filters.user(ADMIN_ID))
@@ -132,7 +127,7 @@ async def add_drive(client, message):
         await message.reply("❌ নিয়ম: `/add আপনার_টোকেন`")
         return
     token = message.command[1].strip()
-    status = await message.reply("🔍 ভেরিফাই হচ্ছে...")
+    status = await message.reply("🔍 জিমেইল ভেরিফাই করা হচ্ছে...")
     try:
         service = get_service(token)
         about = service.about().get(fields="user").execute()
@@ -141,7 +136,7 @@ async def add_drive(client, message):
         drives = [d for d in drives if d.get("email") != email]
         drives.append({"email": email, "token": token})
         save_drives(drives)
-        await status.edit_text(f"🎉 **যুক্ত হয়েছে!**\n📧 জিমেইল: `{email}`\nমোট ড্রাইভ: {len(drives)} টি।")
+        await status.edit_text(f"🎉 **সফলভাবে যুক্ত হয়েছে!**\n📧 জিমেইল: `{email}`\nমোট ড্রাইভ: {len(drives)} টি।")
     except Exception as e:
         await status.edit_text(f"❌ সমস্যা: {str(e)}")
 
@@ -149,7 +144,7 @@ async def add_drive(client, message):
 async def list_drives(client, message):
     drives = load_drives()
     if not drives:
-        await message.reply("কোনো ড্রাইভ যোগ করা নেই!")
+        await message.reply("কোনো ড্রাইভ যোগ করা নেই! `/add টোকেন` দিন।")
         return
     text = "📊 **কানেক্ট করা ড্রাইভ সমূহ:**\n\n"
     for idx, d in enumerate(drives):
@@ -176,14 +171,20 @@ async def upload_video(client, message):
         file_id = file.get('id')
         service.permissions().create(fileId=file_id, body={'type': 'anyone', 'role': 'reader'}).execute()
 
-        # আমাদের নতুন কাস্টম প্লেয়ার লিংক
+        # লিংকসমূহ তৈরি
         custom_play_link = f"{BASE_URL}/watch?id={file_id}"
+        drive_direct_link = f"https://drive.google.com/file/d/{file_id}/preview"
         embed_code = f'<iframe src="{custom_play_link}" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>'
 
+        # সুন্দর আলাদা বক্সে টেলিগ্রামে মেসেজ পাঠানো
         await status.edit_text(
-            f"✅ **ভিডিও সফলভাবে আপলোড হয়েছে!**\n\n"
-            f"🎬 **আপনার নিজস্ব প্রিমিয়াম প্লে লিংক:**\n{custom_play_link}\n\n"
-            f"🌐 **ওয়েবসাইটে ব্যবহারের এম্বেড কোড:**\n`{embed_code}`"
+            f"✅ **ভিডিও সফলভাবে আপলোড সম্পন্ন হয়েছে!**\n\n"
+            f"🎬 **১. কাস্টম প্লে লিংক (ব্রাউজারে দেখতে):**\n"
+            f"{custom_play_link}\n\n"
+            f"🌐 **২. এম্বেড কোড (নিচের কোডে ট্যাপ করে কপি করুন):**\n"
+            f"```{embed_code}```\n\n"
+            f"🔗 **৩. সরাসরি ড্রাইভ লিংক (ব্যাকআপ):**\n"
+            f"{drive_direct_link}"
         )
     except Exception as e:
         await status.edit_text(f"❌ আপলোডে সমস্যা: {str(e)}")
