@@ -2,6 +2,6 @@ pyrogram==2.0.106
 tgcrypto
 google-api-python-client
 google-auth
-google-auth-oauthlib
 google-auth-httplib2
 requests
+aiohttp
