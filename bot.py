@@ -1,10 +1,12 @@
 import os
 import io
+import time
 import json
 import asyncio
 import requests
+import math
 
-# Python 3.12/3.14 এর জন্য ইভেন্ট লুপ ফিক্স (একদম শুরুতে থাকতে হবে)
+# Python 3.12+ এর জন্য ইভেন্ট লুপ ফিক্স
 try:
     asyncio.get_event_loop()
 except RuntimeError:
@@ -23,12 +25,64 @@ API_HASH = os.getenv("TELEGRAM_API_HASH")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 PORT = int(os.getenv("PORT", 8080))
 
-# আপনার Koyeb ডোমেইন
+# আপনার আসল Koyeb ডোমেইন
 BASE_URL = "https://quarrelsome-floris-chatgept-52ae575d.koyeb.app"
 
 DB_FILE = "drives.json"
 
 app = Client("pro_drive_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
+
+def humanbytes(size):
+    if not size:
+        return "0 B"
+    power = 2**10
+    n = 0
+    Dic_powerN = {0: ' ', 1: 'Ki', 2: 'Mi', 3: 'Gi', 4: 'Ti'}
+    while size > power:
+        size /= power
+        n += 1
+    return f"{round(size, 2)} {Dic_powerN[n]}B"
+
+def time_formatter(milliseconds: int) -> str:
+    seconds, milliseconds = divmod(int(milliseconds), 1000)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    days, hours = divmod(hours, 24)
+    tmp = ((str(days) + "d, ") if days else "") + \
+        ((str(hours) + "h, ") if hours else "") + \
+        ((str(minutes) + "m, ") if minutes else "") + \
+        ((str(seconds) + "s, ") if seconds else "")
+    return tmp[:-2] if tmp else "0s"
+
+# ৫ সেকেন্ড পর পর লাইভ প্রগ্রেস বার আপডেট করার ফাংশন
+async def progress_bar(current, total, status_msg, start_time):
+    now = time.time()
+    diff = now - start_time
+    if round(diff % 5.00) == 0 or current == total:
+        percentage = current * 100 / total
+        speed = current / diff if diff > 0 else 0
+        elapsed_time = round(diff) * 1000
+        time_to_completion = round((total - current) / speed) * 1000 if speed > 0 else 0
+        estimated_total_time = elapsed_time + time_to_completion
+
+        elapsed_time = time_formatter(elapsed_time)
+        estimated_total_time = time_formatter(estimated_total_time)
+
+        progress = "[{0}{1}] \n**অগ্রগতি:** {2}%\n".format(
+            ''.join(["█" for i in range(math.floor(percentage / 10))]),
+            ''.join(["░" for i in range(10 - math.floor(percentage / 10))]),
+            round(percentage, 2))
+
+        tmp = progress + "**আকার:** {0} / {1}\n**গতি:** {2}/s\n**বাকি সময়:** {3}\n".format(
+            humanbytes(current),
+            humanbytes(total),
+            humanbytes(speed),
+            estimated_total_time if estimated_total_time != '' else "0 s"
+        )
+        try:
+            await status_msg.edit_text(f"⏳ **গুগল ড্রাইভে আপলোড হচ্ছে...**\n\n{tmp}")
+        except Exception:
+            pass
 
 def load_drives():
     if os.path.exists(DB_FILE):
@@ -57,55 +111,88 @@ def get_service(token):
     data = res.json()
     access_token = data.get("access_token")
     if not access_token:
-        raise Exception(f"গুগল টোকেন রিফ্রেশ ব্যর্থ: {data}")
+        raise Exception(f"টোকেন রিফ্রেশ ব্যর্থ: {data}")
     creds = Credentials(token=access_token)
     return build('drive', 'v3', credentials=creds)
 
-# ----------------- কাস্টম ওয়েব প্লেয়ার -----------------
+# ----------------- বিশ্বমানের নেটফ্লিক্স স্টাইল কাস্টম প্লেয়ার -----------------
 routes = web.RouteTableDef()
 
 @routes.get("/")
 async def home(request):
-    return web.Response(text="🚀 Pro Stream Server is Running Smoothly!", content_type="text/plain")
+    return web.Response(text="🚀 Netflix Style Stream Server is Running!", content_type="text/plain")
 
 @routes.get("/watch")
 @routes.get("/watch/")
 async def watch_player(request):
     file_id = request.query.get("id")
     if not file_id:
-        return web.Response(text="ভিডিও ফাইল আইডি পাওয়া যায়নি!", status=400)
+        return web.Response(text="ভিডিও ফাইল পাওয়া যায়নি!", status=400)
 
+    # প্রিমিয়াম Plyr HTML5 প্লেয়ার (Netflix Red Theme + 0% Google UI)
     html_content = f"""
     <!DOCTYPE html>
     <html lang="bn">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ভিডিও প্লেয়ার</title>
+        <title>সিনেমা প্লেয়ার</title>
+        <!-- Plyr CSS -->
+        <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
         <style>
             * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-            body, html {{ width: 100%; height: 100%; overflow: hidden; background-color: #000; }}
-            .player-wrapper {{
-                position: relative;
-                width: 100vw;
-                height: 100vh;
+            body, html {{ 
+                width: 100%; 
+                height: 100%; 
+                background-color: #000; 
+                display: flex; 
+                justify-content: center; 
+                align-items: center; 
                 overflow: hidden;
             }}
-            iframe {{
-                position: absolute;
-                top: -56px;
-                left: 0;
+            .video-container {{
+                width: 100vw;
+                height: 100vh;
+                max-width: 100%;
+                max-height: 100%;
+                background: #000;
+            }}
+            /* নেটফ্লিক্স রেড কালার থিম */
+            :root {{
+                --plyr-color-main: #E50914;
+                --plyr-video-background: #000;
+                --plyr-menu-background: rgba(20, 20, 20, 0.95);
+                --plyr-menu-color: #fff;
+            }}
+            .plyr {{
+                height: 100%;
                 width: 100%;
-                height: calc(100% + 56px);
-                border: none;
             }}
         </style>
     </head>
     <body oncontextmenu="return false;">
-        <div class="player-wrapper">
-            <iframe src="https://drive.google.com/file/d/{file_id}/preview" allow="autoplay; fullscreen" allowfullscreen></iframe>
+        <div class="video-container">
+            <video id="player" playsinline controls crossorigin>
+                <source src="https://drive.google.com/uc?export=download&id={file_id}" type="video/mp4" />
+            </video>
         </div>
+
+        <!-- Plyr JS -->
+        <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
         <script>
+            const player = new Plyr('#player', {{
+                controls: [
+                    'play-large', 'play', 'progress', 'current-time', 
+                    'duration', 'mute', 'volume', 'settings', 'pip', 'airplay', 'fullscreen'
+                ],
+                settings: ['speed', 'quality'],
+                speed: {{ selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] }},
+                seekTime: 10,
+                keyboard: {{ focused: true, global: true }},
+                tooltips: {{ controls: true, seek: true }}
+            }});
+
+            // কিবোর্ড শর্টকাট ও ইন্সপেক্ট বন্ধ করা
             document.onkeydown = function(e) {{
                 if (e.keyCode == 123 || (e.ctrlKey && (e.keyCode == 85 || e.keyCode == 83 || e.keyCode == 67))) {{
                     return false;
@@ -121,10 +208,10 @@ async def watch_player(request):
 @app.on_message(filters.command("start") & filters.user(ADMIN_ID))
 async def start(client, message):
     await message.reply(
-        "👋 **প্রো ক্লাউড বটে স্বাগতম!**\n\n"
+        "👋 **নেটফ্লিক্স স্টাইল প্রো ক্লাউড বটে স্বাগতম!**\n\n"
         "➕ **জিমেইল যুক্ত করতে:** `/add টোকেন`\n"
         "📊 **ড্রাইভ দেখতে:** `/drives`\n\n"
-        "🎬 যেকোনো ভিডিও পাঠান, বট কাস্টম প্লে লিংক এবং এম্বেড কোড দেবে!"
+        "🎬 ভিডিও পাঠালে আমি লাইভ প্রগ্রেস বারসহ ড্রাইভে আপলোড করে আধুনিক প্লেয়ার লিংক দেব!"
     )
 
 @app.on_message(filters.command("add") & filters.user(ADMIN_ID))
@@ -164,31 +251,40 @@ async def upload_video(client, message):
         await message.reply("❌ আগে `/add` দিয়ে ড্রাইভ যোগ করুন!")
         return
         
-    status = await message.reply("⏳ গুগল ড্রাইভে আপলোড হচ্ছে...")
+    start_time = time.time()
+    status = await message.reply("⏳ প্রসেসিং শুরু হচ্ছে...")
     file_obj = message.video or message.document
     file_name = file_obj.file_name or "video.mp4"
 
     try:
+        # প্রগ্রেস বারসহ ফাইল ডাউনলোড
+        file_path = await message.download(
+            progress=progress_bar,
+            progress_args=(status, start_time)
+        )
+
+        await status.edit_text("⚡ **টেলিগ্রাম থেকে নেওয়া সম্পন্ন! এবার গুগল ড্রাইভে পাঠানো হচ্ছে...**")
+
         service = get_service(drives[0]["token"])
-        file_bytes = await message.download(in_memory=True)
-        media = MediaIoBaseUpload(io.BytesIO(file_bytes.getvalue()), mimetype='video/mp4', resumable=True)
+        media = MediaIoBaseUpload(io.FileIO(file_path, 'rb'), mimetype='video/mp4', resumable=True)
         
         file = service.files().create(body={'name': file_name}, media_body=media, fields='id').execute()
         file_id = file.get('id')
         service.permissions().create(fileId=file_id, body={'type': 'anyone', 'role': 'reader'}).execute()
 
+        # সার্ভারের লোকাল ফাইল রিমুভ (Koyeb স্টোরেজ ক্লিয়ার রাখা)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
         custom_play_link = f"{BASE_URL}/watch?id={file_id}"
-        drive_direct_link = f"https://drive.google.com/file/d/{file_id}/preview"
         embed_code = f'<iframe src="{custom_play_link}" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>'
 
         await status.edit_text(
             f"✅ **ভিডিও সফলভাবে আপলোড সম্পন্ন হয়েছে!**\n\n"
-            f"🎬 **১. কাস্টম প্লে লিংক (ব্রাউজারে দেখতে):**\n"
+            f"🎬 **১. নেটফ্লিক্স প্রিমিয়াম প্লে লিংক:**\n"
             f"{custom_play_link}\n\n"
-            f"🌐 **২. এম্বেড কোড (নিচের কোডে ট্যাপ করে কপি করুন):**\n"
-            f"```{embed_code}```\n\n"
-            f"🔗 **৩. সরাসরি ড্রাইভ লিংক (ব্যাকআপ):**\n"
-            f"{drive_direct_link}"
+            f"🌐 **২. ওয়েবসাইটে ব্যবহারের এম্বেড কোড:**\n"
+            f"```{embed_code}```"
         )
     except Exception as e:
         await status.edit_text(f"❌ আপলোডে সমস্যা: {str(e)}")
@@ -202,7 +298,7 @@ async def main():
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-    print(f"🚀 Server started on port {PORT}")
+    print(f"🚀 Netflix Stream Server started on port {PORT}")
     await idle()
     await app.stop()
 
